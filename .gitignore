@@ -10,6 +10,9 @@ data_original_gdp.xlsx
 data_original_tourism.xlsx
 data_original_tourism_2022.xlsx
 
+data_prep_tourism.csv
+data_prep_gdp.csv
+
 # Session Data files
 .RData
 .RDataTmp

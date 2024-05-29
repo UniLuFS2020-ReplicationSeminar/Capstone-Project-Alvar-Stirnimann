@@ -44,7 +44,7 @@ data_tourism_final <- data_renamed_tourism[-c(15:26),]
 head(data_tourism_final, n = 20)
 
 # Save to CSV
-write.csv(data_tourism_final, file.path(getwd(), "data_prep", "data_prep_tourism_2022.csv"))
+write.csv(data_tourism_final, file.path(getwd(), "data_prep", "data_prep_tourism.csv"))
 
 
 ## Data Preparation GDP

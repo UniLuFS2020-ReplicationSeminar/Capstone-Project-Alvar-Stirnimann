@@ -2,8 +2,12 @@
 .Rhistory
 .Rapp.history
 
+# My Temp Files
+CopyOf00_Data Extraction.R
+
 # Data Files
-data_original.xlsx
+data_original_gdp.xlsx
+data_original_tourism.xlsx
 
 # Session Data files
 .RData

@@ -1,13 +1,12 @@
 # Data Extraction R-Script
-install.packages("readxl")
 
 #Load Libraries
 library(httr)
 library(jsonlite)
 library(readxl)
 
-## Download Toursim Data
-# URL of the XLS file of Tourism Activity in Switzerland
+## Download Toursim Data General
+# URL of the XLS file of Tourism Activity in Switzerland 2022
 url <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/29045003/master"
 
 # Destination file path on your local machine
@@ -26,7 +25,7 @@ file_destination_gdp <- file.path(getwd(), "data_orig", "data_original_gdp.xlsx"
 # Download the file and save to "data_orig" folder
 download.file(url_gdp, file_destination_gdp, mode="wb")
 
-## Download detailed Tourism Data
+## Download detailed Tourism Data 2022
 # URL of the Excel file
 url_tourism_2022 <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/30405413/appendix"
 
@@ -36,4 +35,12 @@ file_destination_tourism_2022 <- file.path(getwd(), "data_orig", "data_original_
 # Download the file and save to "data_orig" folder
 download.file(url_tourism_2022, file_destination_tourism_2022, mode="wb")
 
-## Download Population Data
+## Download detailed Tourism Data 2018
+# URL of the Excel file
+url_tourism_2018 <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/11507546/appendix"
+
+# Destination file path on your local machine
+file_destination_tourism_2018 <- file.path(getwd(), "data_orig", "data_original_tourism_2018.xlsx")
+
+# Download the file and save to "data_orig" folder
+download.file(url_tourism_2018, file_destination_tourism_2018, mode="wb")

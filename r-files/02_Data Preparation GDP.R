@@ -21,7 +21,7 @@ selected_gdp_data <- gdp_data[-c(1,3), c(1, 8:15)]
 # Print the first 30 entries of the DataFrame
 print(head(selected_gdp_data, n = 30), n = 30)
 
-# Rename columns appropriately, assuming the first column is 'Canton'
+# Rename columns appropriately
 colnames(selected_gdp_data) <- c("Canton", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021")
 
 # Drop unused rows

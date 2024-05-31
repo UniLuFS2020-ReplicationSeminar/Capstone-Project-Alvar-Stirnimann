@@ -44,3 +44,12 @@ file_destination_tourism_2018 <- file.path(getwd(), "data_orig", "data_original_
 
 # Download the file and save to "data_orig" folder
 download.file(url_tourism_2018, file_destination_tourism_2018, mode="wb")
+
+## Download resident data per canton
+url_resident <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/30148653/master"
+
+# Destination file path on your local machine
+file_destination_residents <- file.path(getwd(), "data_orig", "data_original_residents.xlsx")
+
+# Download the file and save to "data_orig" folder
+download.file(url_resident, file_destination_residents, mode="wb")

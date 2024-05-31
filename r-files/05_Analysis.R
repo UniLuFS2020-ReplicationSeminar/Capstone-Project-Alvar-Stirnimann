@@ -58,7 +58,11 @@ combined_data_long <- combined_data_long %>%
     workers = scale(workers)
   )
 
-## Analyze Correlation between Tourism Nights and GDP
+
+
+## Model
+
+### Analyze Correlation between Tourism Nights and GDP
 # Calculate correlation for each year
 correlations <- data.frame(Year = numeric(), Correlation = numeric())
 
@@ -69,7 +73,7 @@ for(year in 2014:2021) {
 
 print(correlations)
 
-## Model
+### Linear Mixed-Effects Model with interaction
 # Fit the linear mixed-effects model
 model <- lmer(GDP ~ Tourism_Nights + workers + (1 | Region) + (1 | Year), data = combined_data_long)
 
@@ -95,18 +99,14 @@ ggplot(combined_data_long, aes(x = Tourism_Nights, y = partial_residuals)) +
 # Save plot to output folder
 ggsave("output/Effect of Tourism Nights on GDP (control for workers).png")
 
-# Calculate partial residuals for Tourism_Nights
-partial_residuals <- resid(model) + model.matrix(model)[, "Tourism_Nights"] * fixef(model)["Tourism_Nights"]
 
-# Add partial residuals to the data frame
-combined_data_long$partial_residuals <- partial_residuals
-
-# Plot the partial residuals showing the relationship between Tourism Nights and GDP
+### Linear Mixed-Effects Model by Region
+# Plot the partial residuals showing the relationship between Tourism Nights and GDP per Region
 ggplot(combined_data_long, aes(x = Tourism_Nights, y = partial_residuals)) +
   geom_point(alpha = 0.6) +
   geom_smooth(method = "lm", se = FALSE, color = "blue") +
   facet_wrap(~ Region, scales = "free_y") +
-  labs(title = "Effect of Tourism Nights on GDP (Controlled for Number of Workers)",
+  labs(title = "Effect of Tourism Nights on GDP per Region (Controlled for Workers)",
        x = "Standardized Tourism Nights",
        y = "Partial Residuals of GDP") +
   theme_classic() +
@@ -120,8 +120,53 @@ ggplot(combined_data_long, aes(x = Tourism_Nights, y = partial_residuals)) +
 # Save plot to output folder
 ggsave("output/Effect of Tourism Nights on GDP per Region (control for workers).png")
 
+## Check Residuals
+# Fitted values from the model
+fitted_values <- fitted(model)
+
+# Add fitted values to the data frame
+combined_data_long$fitted_values <- fitted_values
+
+# Residuals vs. Fitted Values Plot
+ggplot(combined_data_long, aes(x = fitted_values, y = partial_residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Residuals vs. Fitted Values",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_classic()
+
+# Save residuals vs. fitted values plot to output folder
+ggsave("output/Residuals vs. Fitted Values.png")
 
 
+### Polynomial model
+# Adding polynomial terms to the model
+model_poly <- lmer(GDP ~ poly(Tourism_Nights, 2) + workers + (1 | Region) + (1 | Year), data = combined_data_long)
+
+# Summary of the polynomial model
+summary(model_poly)
+
+# Diagnostic plots for the polynomial model
+residuals_poly <- resid(model_poly)
+fitted_values_poly <- fitted(model_poly)
+combined_data_long$residuals_poly <- residuals_poly
+combined_data_long$fitted_values_poly <- fitted_values_poly
+
+# Residuals vs. Fitted Values Plot for the polynomial model
+ggplot(combined_data_long, aes(x = fitted_values_poly, y = residuals_poly)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Residuals vs. Fitted Values (Polynomial Model)",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_classic()
+
+# Save residuals vs. fitted values plot for polynomial model to output folder
+ggsave("output/Residuals vs. Fitted Values (Polynomial Model).png")
+
+
+### Scatter Plot of 2021 GDP vs Tourism Nights
 # Plot scatter plot for 2021 with labeled points using ggplot2 and "combined_data" dataset
 ggplot(combined_data, aes(x = `2021_Tourism_Nights`, y = `2021_GDP`, label = Region)) +
   geom_point() +
@@ -130,27 +175,6 @@ ggplot(combined_data, aes(x = `2021_Tourism_Nights`, y = `2021_GDP`, label = Reg
 
 # Save scatter plot to output folder
 ggsave("output/scatter_plot_2021_gdp__vs_tourism.png")
-
-
-
-# Extract fixed effects
-fixed_effects <- fixef(model)
-
-# Predict values
-combined_data_long$predicted_GDP <- predict(model)
-
-# Plot actual vs. predicted GDP
-ggplot(combined_data_long, aes(x = predicted_GDP, y = GDP)) +
-  geom_point() +
-  geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "red") +
-  labs(title = "Actual vs. Predicted GDP",
-       x = "Predicted GDP",
-       y = "Actual GDP")
-
-# Visualize random effects
-ranef_model <- ranef(model)
-print(ranef_model)
-
 
 
 

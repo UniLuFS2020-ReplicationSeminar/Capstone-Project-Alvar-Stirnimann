@@ -1,0 +1,660 @@
+---
+title: "Capstone Project Report"
+author: "Alvar Stirnimann"
+date: "2024-05-31"
+output: html_document
+---
+
+# Introduction
+
+## Project Description
+In this capstone project for the course "Data Mining in R" at the University of Lucerne we will analyze the relationship between tourism activity and the Gross Domestic Product (GDP) in Switzerland. The goal of this project is to understand how tourism activity influences the GDP of the different tourism regions in Switzerland and how the the COVID-19 pandemic influenced the GDP through a decrease in tourism activity. For this purpose we will extract and use data from the Swiss Federal Statistical Office (BFS) to analyze this relationship. To do so, we will prepare the data, analyze the correlation between tourism activity and GDP, and build a linear mixed-effects model to further investigate the relationship between these variables. A further analysis of the residuals will help us to understand the impact of tourism activity on the GDP of the different regions in Switzerland.
+
+
+## Hypothesis
+Our hypothesis is that the decrease in tourism activity due to the COVID-19 pandemic has a negative impact on the GDP of the different tourism regions in Switzerland. We expect to see a positive correlation between the number of tourism nights and the GDP of the different regions. As not all cantons are comparable in terms of economic activity we use the workforce of the cantons as a control variable.
+
+
+## Data
+
+The data for this project was extracted from the Swiss Federal Statistical Office (BFS) website. The data was downloaded in Excel format and saved in the "data_orig" folder. For analyzing the impact of swiss tourism activity on the GDP, we will use the following datasets:
+
+1. Swiss GDP per canton from 2008 to 2021:            https://dam-api.bfs.admin.ch/hub/api/dam/assets/28405424/master
+2. Swiss Tourism Data per region from 2018 to 2022:   https://dam-api.bfs.admin.ch/hub/api/dam/assets/30405413/appendix
+3. Swiss Tourism Data per region from 2014 to 2018:   https://dam-api.bfs.admin.ch/hub/api/dam/assets/11507546/appendix
+4. Swiss Resident Data per canton from 2010 to 2022:  https://dam-api.bfs.admin.ch/hub/api/dam/assets/30148653/master
+
+
+# Scripts and Explanations
+
+## Script 00: Data Extraction
+
+The following R code was used to download the required data for answering our hypothesis. As the website of "opendata.swiss" directly provides the download-urls for the XLS files downloading them can be done directly with the use of that URL and the "download.file"-function. The data is then stored in the "data_orig" folder. 
+
+```{r Data Extraction, warning=FALSE}
+#Load Libraries
+library(httr)
+library(jsonlite)
+library(readxl)
+
+## Download GDP Data
+# URL of the XLS file of GDP in Switzerland
+url_gdp <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/28405424/master"
+
+# Destination file path on your local machine
+file_destination_gdp <- file.path(getwd(), "data_orig", "data_original_gdp.xlsx")
+
+# Download the file and save to "data_orig" folder
+download.file(url_gdp, file_destination_gdp, mode="wb")
+
+## Download detailed Tourism Data 2022
+# URL of the Excel file
+url_tourism_2022 <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/30405413/appendix"
+
+# Destination file path on your local machine
+file_destination_tourism_2022 <- file.path(getwd(), "data_orig", "data_original_tourism_2022.xlsx")
+
+# Download the file and save to "data_orig" folder
+download.file(url_tourism_2022, file_destination_tourism_2022, mode="wb")
+
+## Download detailed Tourism Data 2018
+# URL of the Excel file
+url_tourism_2018 <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/11507546/appendix"
+
+# Destination file path on your local machine
+file_destination_tourism_2018 <- file.path(getwd(), "data_orig", "data_original_tourism_2018.xlsx")
+
+# Download the file and save to "data_orig" folder
+download.file(url_tourism_2018, file_destination_tourism_2018, mode="wb")
+
+## Download resident data per canton
+url_resident <- "https://dam-api.bfs.admin.ch/hub/api/dam/assets/30148653/master"
+
+# Destination file path on your local machine
+file_destination_residents <- file.path(getwd(), "data_orig", "data_original_residents.xlsx")
+
+# Download the file and save to "data_orig" folder
+download.file(url_resident, file_destination_residents, mode="wb")
+
+```
+
+## Script 1: Data Preparation Tourism
+
+In the next step we prepare the two tourism datasets which we downloaded previously. For this purpose we load the data from the Excel files and specify the sheets we are interested in. We check the structure of the data, retrieve those rows and columns that we want to keep and rename the column (note that we drop the year 2022 because we do not have GDP information on that year from our dataset). This is done for both datasets which then can be merged with the "left_join"-function. Afterwards we delete the first row which represents the total for Switzerland. The .csv file which contains all the relevant tourism data from 2014 - 2021 is then stored in the "data_prep" folder. 
+
+```{r Tourism, warning=FALSE, message=FALSE}
+# Load libraries
+library(readxl)
+library(dplyr)
+library(readr)
+
+## Tourism Data 2018 - 2022
+# Load the data
+tourism_data <- read_excel("data_orig/data_original_tourism_2022.xlsx", sheet = "T2.2.6")
+
+
+# Check the structure of the data
+head(tourism_data)
+
+# Check the column names to ensure you're referencing them correctly in the next steps
+colnames(tourism_data)
+
+# Select Data (we don't use 2022 as we do not have GDP data for that year)
+selected_data_tourism <- tourism_data[-c(1,2,3), c(1, 4, 7, 10, 13)]
+head(selected_data_tourism)
+colnames(selected_data_tourism)
+
+
+# Rename columns
+data_renamed_tourism <- selected_data_tourism %>%
+  rename(
+    "Region" = 1,
+    "2018" = 2,
+    "2019" = 3,
+    "2020" = 4,
+    "2021" = 5
+  )
+
+# Check
+head(data_renamed_tourism, n = 20)
+
+# Drop Columns after Aargau and Solothurn Region
+data_tourism_final <- data_renamed_tourism[-c(15:26),]
+head(data_tourism_final, n = 20)
+
+
+## Tourism Data 2018
+# Load the data
+tourism_data_2018 <- read_excel("data_orig/data_original_tourism_2018.xlsx", sheet = "T2.2.8")
+
+
+# Check the structure of the data
+head(tourism_data_2018)
+
+# Check the column names to ensure you're referencing them correctly in the next steps
+colnames(tourism_data_2018)
+
+# Select Data
+selected_data_tourism_2018 <- tourism_data_2018[-c(1,2,3), c(1, 4, 7, 10, 13)]
+head(selected_data_tourism_2018)
+colnames(selected_data_tourism_2018)
+
+
+# Rename columns
+data_renamed_tourism_2018 <- selected_data_tourism_2018 %>%
+  rename(
+    "Region" = 1,
+    "2014" = 2,
+    "2015" = 3,
+    "2016" = 4,
+    "2017" = 5
+  )
+
+# Rename certain regions
+data_renamed_tourism_2018 <- data_renamed_tourism_2018 %>%
+  mutate(Region = case_when(
+    row_number() == 9 ~ "Waadt",
+    row_number() == 14 ~ "Aargau und Solothurn Region",
+    TRUE ~ Region
+  ))
+
+
+# Check
+head(data_renamed_tourism_2018, n = 20)
+
+# Drop Columns after Aargau and Solothurn Region
+data_tourism_final_2018 <- data_renamed_tourism_2018[-c(15:26),]
+head(data_tourism_final_2018, n = 20)
+
+## Combine Tourism Data from 2014 - 2022
+combined_data_tourism <- left_join(data_tourism_final_2018, data_tourism_final, by = "Region")
+head(combined_data_tourism, n = 20)
+
+# Drop "Switzerland" Row
+combined_data_tourism <- combined_data_tourism[-c(1),]
+
+# Save to CSV
+write.csv(combined_data_tourism, file.path(getwd(), "data_prep", "data_prep_tourism_2014-2022.csv"))
+
+```
+
+
+## Script 2: Data Preparation GDP
+
+In our third script we de the preparation for the GDP data. We load the data and select the columns and rows we are interested in. We then change the names of the columns. Because we have tourism data only on regions and not cantons we need to map the cantons to those regions. This was done manually with the help of GitHub Copilot. The cantons are then merged based on their assigned region. The result is the dataset which is now saved as a .csv file to our "data_prep" folder.
+
+```{r GDP, warning=FALSE}
+## Data Preparation GDP
+
+# Load libraries
+library(readxl)
+library(dplyr)
+library(readr)
+
+# Load the data
+gdp_data <- read_excel("data_orig/data_original_gdp.xlsx")
+
+# Check the structure of the data
+head(gdp_data, n=20)
+
+# Check the column names to ensure you're referencing them correctly in the next steps
+colnames(gdp_data)
+
+# Select Data
+selected_gdp_data <- gdp_data[-c(1,3), c(1, 8:15)]
+
+# Print the first 30 entries of the DataFrame
+print(head(selected_gdp_data, n = 30), n = 30)
+
+# Rename columns appropriately
+colnames(selected_gdp_data) <- c("Canton", "2014", "2015", "2016", "2017", "2018", "2019", "2020", "2021")
+
+# Drop unused rows
+selected_gdp_data <- selected_gdp_data[-c(1,28:nrow(selected_gdp_data)),]
+print(head(selected_gdp_data, n = 30), n = 30)
+
+# Create Regions from cantons mapping
+canton_to_region <- data.frame(
+  Canton = c("Zürich", "Bern", "Luzern", "Uri", "Schwyz", "Obwalden", "Nidwalden", "Glarus", "Zug", "Freiburg", "Solothurn", "Basel-Stadt", "Basel-Landschaft", "Schaffhausen", "Appenzell A. Rh.", "Appenzell I. Rh.", "St. Gallen", "Graubünden", "Aargau", "Thurgau", "Tessin", "Waadt", "Wallis", "Neuenburg", "Genf", "Jura"),
+  Region = c("Zürich Region", "Bern Region", "Zentralschweiz", "Zentralschweiz", "Zentralschweiz", "Zentralschweiz", "Zentralschweiz", "Ostschweiz", "Zentralschweiz", "Fribourg Region", "Aargau und Solothurn Region", "Basel Region", "Basel Region", "Ostschweiz", "Ostschweiz", "Ostschweiz", "Ostschweiz", "Graubünden", "Aargau und Solothurn Region", "Ostschweiz", "Tessin", "Waadt", "Wallis", "Jura & Drei-Seen-Land", "Genf", "Jura & Drei-Seen-Land")
+)
+
+# Check
+head(canton_to_region, n = 20)
+colnames(selected_gdp_data)
+
+# Join the GDP data with the region mapping
+mapped_gdp_data <- selected_gdp_data %>%
+  right_join(canton_to_region, by = c("Canton" = "Canton"))
+
+# Check
+print(head(mapped_gdp_data, n = 30), n = 30)
+
+# Convert character columns to numeric
+mapped_gdp_data[2:9] <- lapply(mapped_gdp_data[2:9], as.numeric)
+
+# Summarize GDP by region
+gdp_by_region <- mapped_gdp_data %>%
+  group_by(Region) %>%
+  summarise(across(`2014`:`2021`, sum, na.rm = TRUE))
+
+# View the summarized data
+print(gdp_by_region)
+
+# Save to CSV
+write.csv(gdp_by_region, file.path(getwd(), "data_prep", "data_prep_gdp.csv"))
+
+
+```
+
+
+## Script 3: Data Preparation Residents
+
+In this next script we prepare the resident data per canton. As the data is splitted over several sheets we decide to load each sheet separately. It is clear that this step could be realized with a for-loop to further automate the process but we were satisfied with the capability of GitHub copilot to automatically generate and adapt the code for every additional year. The same goes for the renaming of the columns which is the next step we conducted. As this data is also only available per canton we conduct a mapping to the regions, similar to the previous chapter. Again, we merge the cantons based on their region and retrieve the final dataset. The according .csv file is then stored in the "data_prep" folder.
+
+```{r Residents, warning=FALSE}
+## Data Preparation Residents
+
+# Load libraries
+library(readxl)
+library(dplyr)
+library(readr)
+
+# Load the data
+resident_data <- read_excel("data_orig/data_original_residents.xlsx")
+
+# Check the structure of the data
+head(resident_data, n=20)
+
+# Check the column names to ensure you're referencing them correctly in the next steps
+colnames(resident_data)
+
+## Extract data from each sheet
+# Get sheet names
+sheet_names <- excel_sheets("data_orig/data_original_residents.xlsx")
+print(sheet_names)
+
+# Load the data 2021
+resident_data_2021 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2021")
+
+# Load the data 2020
+resident_data_2020 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2020")
+
+# Load the data 2019
+resident_data_2019 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2019")
+
+# Load the data 2018
+resident_data_2018 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2018")
+
+# Load the data 2017
+resident_data_2017 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2017")
+
+# Load the data 2016
+resident_data_2016 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2016")
+
+# Load the data 2015
+resident_data_2015 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2015")
+
+# Load the data 2014
+resident_data_2014 <- read_excel("data_orig/data_original_residents.xlsx", sheet = "2014")
+
+# Check the structure of the data
+print(head(resident_data_2021, n=35), n=35)
+head(resident_data_2020, n=20)
+head(resident_data_2019, n=20)
+head(resident_data_2018, n=20)
+head(resident_data_2017, n=20)
+head(resident_data_2016, n=20)
+head(resident_data_2015, n=20)
+print(head(resident_data_2014, n=35),n=35)
+
+# Select Data from each sheet and rename columns
+# 2014
+selected_resident_data_2014 <- resident_data_2014[-c(1:8, 35:nrow(resident_data_2014)), c(1, 4)]
+colnames(selected_resident_data_2014) <- c("Canton", "2014_workers")
+
+print(head(selected_resident_data_2014, n=30), n=30)
+
+#2015
+selected_resident_data_2015 <- resident_data_2015[-c(1:8, 35:nrow(resident_data_2015)), c(1, 4)]
+colnames(selected_resident_data_2015) <- c("Canton", "2015_workers")
+
+# 2016
+selected_resident_data_2016 <- resident_data_2016[-c(1:8, 35:nrow(resident_data_2016)), c(1, 4)]
+colnames(selected_resident_data_2016) <- c("Canton", "2016_workers")
+
+# 2017
+selected_resident_data_2017 <- resident_data_2017[-c(1:8, 35:nrow(resident_data_2017)), c(1, 4)]
+colnames(selected_resident_data_2017) <- c("Canton", "2017_workers")
+
+# 2018
+selected_resident_data_2018 <- resident_data_2018[-c(1:8, 35:nrow(resident_data_2018)), c(1, 4)]
+colnames(selected_resident_data_2018) <- c("Canton", "2018_workers")
+
+# 2019
+selected_resident_data_2019 <- resident_data_2019[-c(1:8, 35:nrow(resident_data_2019)), c(1, 4)]
+colnames(selected_resident_data_2019) <- c("Canton", "2019_workers")
+
+# 2020
+selected_resident_data_2020 <- resident_data_2020[-c(1:8, 35:nrow(resident_data_2020)), c(1, 4)]
+colnames(selected_resident_data_2020) <- c("Canton", "2020_workers")
+
+# 2021
+selected_resident_data_2021 <- resident_data_2021[-c(1:8, 35:nrow(resident_data_2021)), c(1, 4)]
+colnames(selected_resident_data_2021) <- c("Canton", "2021_workers")
+
+print(head(selected_resident_data_2021, n=30), n=30)
+
+
+# Combine the selected data
+resident_data_combined <- left_join(selected_resident_data_2014, selected_resident_data_2015, by = "Canton")
+resident_data_combined <- left_join(resident_data_combined, selected_resident_data_2016, by = "Canton")
+resident_data_combined <- left_join(resident_data_combined, selected_resident_data_2017, by = "Canton")
+resident_data_combined <- left_join(resident_data_combined, selected_resident_data_2018, by = "Canton")
+resident_data_combined <- left_join(resident_data_combined, selected_resident_data_2019, by = "Canton")
+resident_data_combined <- left_join(resident_data_combined, selected_resident_data_2020, by = "Canton")
+resident_data_combined <- left_join(resident_data_combined, selected_resident_data_2021, by = "Canton")
+
+# Check
+print(head(resident_data_combined, n=30), n=30)
+
+# Create Regions from cantons mapping
+canton_to_region <- data.frame(
+  Canton = c("Zürich", "Bern / Berne", "Luzern", "Uri", "Schwyz", "Obwalden", "Nidwalden", "Glarus", "Zug", "Fribourg / Freiburg", "Solothurn", "Basel-Stadt", "Basel-Landschaft", "Schaffhausen", "Appenzell Ausserrhoden", "Appenzell Innerrhoden", "St. Gallen", "Graubünden / Grigioni / Grischun", "Aargau", "Thurgau", "Ticino", "Vaud", "Valais / Wallis", "Neuchâtel", "Genève", "Jura"),
+  Region = c("Zürich Region", "Bern Region", "Zentralschweiz", "Zentralschweiz", "Zentralschweiz", "Zentralschweiz", "Zentralschweiz", "Ostschweiz", "Zentralschweiz", "Fribourg Region", "Aargau und Solothurn Region", "Basel Region", "Basel Region", "Ostschweiz", "Ostschweiz", "Ostschweiz", "Ostschweiz", "Graubünden", "Aargau und Solothurn Region", "Ostschweiz", "Tessin", "Waadt", "Wallis", "Jura & Drei-Seen-Land", "Genf", "Jura & Drei-Seen-Land")
+)
+
+# Join the GDP data with the region mapping
+mapped_worker_data <- resident_data_combined %>%
+  right_join(canton_to_region, by = c("Canton" = "Canton"))
+
+# Check
+print(head(mapped_worker_data, n = 30), n = 30)
+
+# Convert character columns to numeric
+mapped_worker_data[2:9] <- lapply(mapped_worker_data[2:9], as.numeric)
+
+# Summarize GDP by region
+workers_by_region <- mapped_worker_data %>%
+  group_by(Region) %>%
+  summarise(across(`2014_workers`:`2021_workers`, sum, na.rm = TRUE))
+
+# View the summarized data
+print(workers_by_region)
+
+# Save to CSV
+write.csv(workers_by_region, file.path(getwd(), "data_prep", "data_prep_workers.csv"))
+```
+
+
+## Script 4: Data Preparation Combined
+
+We now have prepared all the relevant datasets. What remains is to combine them into one dataset and further prepare and clean the data before it is being analyzed. We load the datasets, rename the "Luzern / Vierwaldstättersee" region to "Zentralschweiz" to match the other datasets. We then combine the datasets and rename the columns for clarity. We drop the index column of the added GDP data and save the final dataset to a .csv file in the "data_prep" folder.
+
+```{r Combine Datasets, warning=FALSE}
+## Combine Datasets
+
+library(readr)
+library(dplyr)
+
+# Load the tourism data
+tourism_data <- read_csv("data_prep/data_prep_tourism_2014-2022.csv", col_types = cols(
+  .default = col_double(),
+  Region = col_character()
+))
+
+# Load the GDP data
+gdp_data <- read_csv("data_prep/data_prep_gdp.csv", col_types = cols(
+  .default = col_double(),
+  Region = col_character()
+))
+
+# Load the worker data
+workers_data <- read_csv("data_prep/data_prep_workers.csv", col_types = cols(
+  .default = col_double(),
+  Region = col_character()
+))
+
+# Check the structure of the data
+head(tourism_data, n=20)
+head(gdp_data, n=20)
+head(workers_data, n=20)
+
+# Rename "Luzern / Vierwaldstättersee" to "Zentralschweiz" in tourism_data
+tourism_data <- tourism_data %>%
+  mutate(Region = case_when(
+    Region == "Luzern / Vierwaldstättersee" ~ "Zentralschweiz",
+    TRUE ~ Region
+  ))
+
+
+# Combine the datasets
+combined_data_pre <- left_join(tourism_data, gdp_data, by = "Region")
+combined_data <- left_join(combined_data_pre, workers_data, by = "Region")
+
+# Check
+print(combined_data)
+
+# Rename year and gdp columns for clarity
+combined_data <- combined_data %>%
+  rename_with(~ gsub("(.*)\\.x", "\\1_Tourism_Nights", .x),
+              .cols = ends_with(".x")) %>%
+  rename_with(~ gsub("(.*)\\.y", "\\1_GDP", .x),
+              .cols = ends_with(".y"))
+
+# Drop Index column of added gdp data
+data_final <- combined_data[,-c(1, 11,20)]
+print(head(data_final, n=20),n=20)
+
+# Save to CSV
+write.csv(data_final, file.path(getwd(), "data_prep", "data_prep_combined_final.csv"))
+
+```
+
+
+## Script 5: Analysis
+As we have now one dataset that we can work with we start with the analysis. We load the dataset and check the structure and summary of the data. We again remove unwanted columns and convert the tourism and GDP columns from character to numeric. We then reshape the data from wide to long format and standardize the variables. It can be noted that some of those steps could have been performed directly in the data preparation part which would be considered for a future project. 
+
+Regarding the actual analysis we start with taking a look at the correlation between tourism nights and GDP for each year in the period from 2014 to 2021. 
+In a second step we fit a linear mixed-effects model to the data where we control for the number of employed workers in a region. For this we first calculate the residuals. We then create a plot showing the relationship between tourism nights and GDP while controlling for the number of workers. We then also create a similar plot but per region.
+In a next step we check the residuals of the model by creating a plot of residuals vs. fitted values. The observed heteroscedasticity indicates that the linear model might not be the best fit for the data. Therefore we try the same thing with a polynomial model. We will discuss the results in the final section.
+As a final step we create a scatter plot for 2021 with labeled points using ggplot2 and the "combined_data" dataset. This is simply to get some impression how GDP could be connected with "tourism nights". We save all the plots to the "output" folder.
+
+```{r Analysis, warning=FALSE}
+## Analysis
+
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+library(lme4)
+library(tidyr)
+
+# Load the combined data
+combined_data <- read_csv("data_prep/data_prep_combined_final.csv", col_types = cols(
+  .default = col_double(),
+  Region = col_character()
+))
+
+## Prepare Analysis
+# Check the structure and summary of the data
+str(combined_data)
+summary(combined_data)
+head(combined_data, n=20)
+
+# Check for any NA values and decide how to handle them
+sum(is.na(combined_data))
+
+# Remove unwanted columns
+combined_data <- combined_data %>%
+  select(-c(...1))
+
+
+# Check
+head(combined_data, n=20)
+
+# Convert tourism and GDP columns from character to numeric
+#tourism_columns <- names(combined_data)[grep("Tourism_Nights", names(combined_data))]
+#gdp_columns <- names(combined_data)[grep("GDP", names(combined_data))]
+
+#combined_data[tourism_columns] <- lapply(combined_data[tourism_columns], as.numeric)
+#combined_data[gdp_columns] <- lapply(combined_data[gdp_columns], as.numeric)
+
+# Reshape the data from wide to long format
+combined_data_long <- combined_data %>%
+  pivot_longer(cols = -c(Region), 
+               names_to = c("Year", ".value"), 
+               names_pattern = "(\\d{4})_(.*)") %>%
+  mutate(Year = as.numeric(Year),
+         Region = as.factor(Region))
+
+# Check
+head(combined_data_long, n=20)
+colnames(combined_data_long)
+str(combined_data_long)
+
+# Standarize the variables
+combined_data_long <- combined_data_long %>%
+  mutate(
+    GDP = scale(GDP),
+    Tourism_Nights = scale(Tourism_Nights),
+    workers = scale(workers)
+  )
+
+
+
+## Model
+
+### Analyze Correlation between Tourism Nights and GDP
+# Calculate correlation for each year
+correlations <- data.frame(Year = numeric(), Correlation = numeric())
+
+for(year in 2014:2021) {
+  correlation <- cor(combined_data[[paste0(year, "_Tourism_Nights")]], combined_data[[paste0(year, "_GDP")]], use = "complete.obs")
+  correlations <- rbind(correlations, data.frame(Year = year, Correlation = correlation))
+}
+
+print(correlations)
+
+### Linear Mixed-Effects Model with interaction
+# Fit the linear mixed-effects model
+model <- lmer(GDP ~ Tourism_Nights + workers + (1 | Region) + (1 | Year), data = combined_data_long)
+
+# Summary of the model
+summary(model)
+
+# Calculate partial residuals for Tourism_Nights
+partial_residuals <- resid(model) + model.matrix(model)[, "Tourism_Nights"] * fixef(model)["Tourism_Nights"]
+
+# Add partial residuals to the data frame
+combined_data_long$partial_residuals <- partial_residuals
+
+# Plot the partial residuals showing the relationship between Tourism Nights and GDP
+ggplot(combined_data_long, aes(x = Tourism_Nights, y = partial_residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  labs(title = "Effect of Tourism Nights on GDP (Controlled for Number of Workers)",
+       x = "Standardized Tourism Nights",
+       y = "Partial Residuals of GDP", 
+      color = "Region") +
+  theme_classic()
+
+# Save plot to output folder
+ggsave("output/Effect of Tourism Nights on GDP (control for workers).png")
+
+
+### Linear Mixed-Effects Model by Region
+# Plot the partial residuals showing the relationship between Tourism Nights and GDP per Region
+ggplot(combined_data_long, aes(x = Tourism_Nights, y = partial_residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  facet_wrap(~ Region, scales = "free_y") +
+  labs(title = "Effect of Tourism Nights on GDP per Region (Controlled for Workers)",
+       x = "Standardized Tourism Nights",
+       y = "Partial Residuals of GDP") +
+  theme_classic() +
+  theme(
+    panel.background = element_rect(fill = "white"),
+    plot.background = element_rect(fill = "white"),
+    legend.background = element_rect(fill = "white"),
+    legend.key = element_rect(fill = "white")
+  )
+
+# Save plot to output folder
+ggsave("output/Effect of Tourism Nights on GDP per Region (control for workers).png")
+
+## Check Residuals
+# Fitted values from the model
+fitted_values <- fitted(model)
+
+# Add fitted values to the data frame
+combined_data_long$fitted_values <- fitted_values
+
+# Residuals vs. Fitted Values Plot
+ggplot(combined_data_long, aes(x = fitted_values, y = partial_residuals)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Residuals vs. Fitted Values",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_classic()
+
+# Save residuals vs. fitted values plot to output folder
+ggsave("output/Residuals vs. Fitted Values.png")
+
+
+### Polynomial model
+# Adding polynomial terms to the model
+model_poly <- lmer(GDP ~ poly(Tourism_Nights, 2) + workers + (1 | Region) + (1 | Year), data = combined_data_long)
+
+# Summary of the polynomial model
+summary(model_poly)
+
+# Diagnostic plots for the polynomial model
+residuals_poly <- resid(model_poly)
+fitted_values_poly <- fitted(model_poly)
+combined_data_long$residuals_poly <- residuals_poly
+combined_data_long$fitted_values_poly <- fitted_values_poly
+
+# Residuals vs. Fitted Values Plot for the polynomial model
+ggplot(combined_data_long, aes(x = fitted_values_poly, y = residuals_poly)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "loess", se = FALSE, color = "blue") +
+  labs(title = "Residuals vs. Fitted Values (Polynomial Model)",
+       x = "Fitted Values",
+       y = "Residuals") +
+  theme_classic()
+
+# Save residuals vs. fitted values plot for polynomial model to output folder
+ggsave("output/Residuals vs. Fitted Values (Polynomial Model).png")
+
+
+### Scatter Plot of 2021 GDP vs Tourism Nights
+# Plot scatter plot for 2021 with labeled points using ggplot2 and "combined_data" dataset
+ggplot(combined_data, aes(x = `2021_Tourism_Nights`, y = `2021_GDP`, label = Region)) +
+  geom_point() +
+  geom_text_repel() +
+  labs(title = "Scatter Plot of Tourism Nights vs GDP in 2021", x = "Tourism Nights", y = "GDP")
+
+# Save scatter plot to output folder
+ggsave("output/scatter_plot_2021_gdp__vs_tourism.png")
+
+```
+
+
+# Results
+
+The analysis of the relationship between tourism nights and GDP in Switzerland revealed some interesting findings. The correlation between tourism nights and GDP was positive and in the range from 0.42 to 0.51 for each year from 2014 to 2019. In 2020 where touristic activity declined heavily the correlation was roughly at 0 and at 0.08 in 2021. This suggests that while tourism was impacted very heavily by the COVIC-19 pandemic the GDP was way less affected. This makes sense since GDP does not only consist of tourism but also other sectors which were not as much affected by COVID-19 as tourism. 
+Our linear model reveals, there seems to be a positive relationship between "Tourism_Nihgts" and "GDP", however with a rather low t-value of 1.88. This effect is confirmed when we take a look at the partial residuals of GDP (Plot: "Effect of Tourism Nights on GDP (Controlled for Number of Workers)"). By taking a look at a linear model per region we can see that the effect is not the same for every region. The plot "Effect of Tourism Nights on GDP per Region (Controlled for Workers)" shows that the effect is weaker or even negative in some regions. The "Residuals vs. Fitted Values" plot shows that there is some heteroscedasticity in the data. By using a polynomial model we tried to address this problem. As we can see from the model output the t-value for the polynomial term is 2.615 which is higher than for the linear term. The plot "Residuals vs. Fitted Values (Polynomial Model)" shows that the problem of heteroscedasticity could be reduced while not completely eliminated.
+
+
+# Conclusion
+
+As the plots indicate there seems to be a positive relationship between GDP and tourism. We could also show that the polynomial model fits the data better than a linear one. However, the model is not perfect and there are still some issues with the residuals. There might be other variables which could be controlled for to increase the fit of the model even more and to get more precise results. With our model we can therefore confirm our hypothesis. Further research could be done to investigate this relationship in more detail. Overall, the results of this analysis provide some insights into the relationship between tourism and GDP in Switzerland and how it was affected by the COVID-19 pandemic.
+
+
+# Problems and Learning
+
+Whilst performing the analysis I encountered several problems, most of which could be solved in due time. However, there are some things that could have been done differently and better which I recognize as some very essential learnings. For example, the analysis could have been way more detailed so the results would be preciser. This is in regard to the control variables and the models as well. Also the polynomial model could have been further optimized. Another thing is the visual presentation of the data and the results. For example, in the "Effect of Tourism Nights on GDP (Controller for Number of Workers)" plot I tried to color all the dots according to the region they represent. This did not work out as intended as you can see in the graph. Also I have to recognize that the r-markdown file does not profit from all the "checks" I performed in the R-scripts. I consider changing this in the future but for this project I wanted to leave it as it is so you can see the process.
+
+

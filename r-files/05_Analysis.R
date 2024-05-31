@@ -151,11 +151,6 @@ ggplot(combined_data_long, aes(x = predicted_GDP, y = GDP)) +
 ranef_model <- ranef(model)
 print(ranef_model)
 
-# Plot random effects for Cantons
-dotplot(ranef_model$Region, main = "Random Effects for Cantons")
-
-# Plot random effects for Years
-dotplot(ranef_model$Year, main = "Random Effects for Years")
 
 
 

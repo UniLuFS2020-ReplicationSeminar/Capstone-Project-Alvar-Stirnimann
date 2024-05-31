@@ -5,7 +5,6 @@ library(readxl)
 library(dplyr)
 library(readr)
 
-# 2. GDP Data
 # Load the data
 gdp_data <- read_excel("data_orig/data_original_gdp.xlsx")
 
